@@ -1,66 +1,120 @@
 import React, { Component } from "react";
-import { getMovies, deleteMovie } from "../services/fakeMovieService";
+import { getMovies } from "../services/fakeMovieService";
+import { getGenres } from "../services/fakeGenreService";
+
+import Pagination from "./pagination";
+import { paginate } from "../utils/paginate";
+import ListGroup from "../components/listGroup";
+import Banner from "./banner";
+import MoviesTable from "./moviesTable";
+import _ from "lodash";
+
 class Movies extends Component {
   state = {
     movies: getMovies(),
+    genres: getGenres(),
+    pageSize: 4,
+    selectedItem: "all",
+    currentPage: 1,
+    selectedGroup: { id: 0, name: "all" },
+    sortColumn: { path: "title", order: "asc" },
   };
 
   render() {
-    if (this.state.movies.length <= 0) {
+    const { length: count } = this.state.movies;
+    const {
+      movies,
+      length,
+      pageSize,
+      currentPage,
+      sortColumn,
+    } = this.getPagedData();
+
+    if (length <= 0) {
       return (
         <div className="alert alert-primary m-2 p-2">
           There's no movies in the database
         </div>
       );
     }
+
     return (
       <React.Fragment>
-        <div className="alert alert-success m-2 p-2">
-          There's
-          <span className="font-weight-bold"> {this.state.movies.length} </span>
-          movies in the database
+        <Banner data={count} />
+        <div className="row">
+          <div className="col-3">
+            <ListGroup
+              groups={this.state.genres}
+              selectedItem={this.state.selectedItem}
+              selectedGroup={this.state.selectedGroup}
+              onGroupSelect={this.handelGroupChanged}
+            />
+          </div>
+          <div className="col">
+            <MoviesTable
+              data={movies}
+              onSort={this.handleSort}
+              sortColumn={sortColumn}
+              onLike={this.handleLike}
+            />
+            <Pagination
+              itemsCount={length}
+              pageSize={pageSize}
+              currentPage={currentPage}
+              onPageChanged={this.handelPageChanged}
+            />
+          </div>
         </div>
-
-        <table className="table">
-          <thead>
-            <tr>
-              <th scope="col">ID</th>
-              <th scope="col">Title</th>
-              <th scope="col">Genre</th>
-              <th scope="col">Stock</th>
-              <th scope="col">Rate</th>
-              <th scope="col">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {this.state.movies.map((movie) => this.TableElement(movie))}
-          </tbody>
-        </table>
       </React.Fragment>
     );
   }
-  DeleteMovie = (movieId) => {
-    deleteMovie(movieId);
-    this.setState({ Movies: getMovies() });
+
+  getPagedData = () => {
+    const {
+      movies: allMovies,
+      currentPage,
+      pageSize,
+      selectedGroup,
+      sortColumn,
+    } = this.state;
+
+    const filtered =
+      selectedGroup.name !== "all"
+        ? allMovies.filter((m) => m.genre._id === selectedGroup._id)
+        : allMovies;
+
+    const sorted = _.orderBy(filtered, [sortColumn.path], [sortColumn.order]);
+
+    const movies = paginate(sorted, currentPage, pageSize);
+
+    return {
+      length: filtered.length,
+      movies,
+      pageSize,
+      currentPage,
+      sortColumn,
+    };
   };
-  TableElement = (movie) => {
-    return (
-      <tr key={movie._id}>
-        <th scope="row">{movie._id}</th>
-        <td>{movie.genre.name}</td>
-        <td>{movie.numberInStock}</td>
-        <td>{movie.dailyRentalRate}</td>
-        <td>{movie.title}</td>
-        <td>
-          <button
-            className="btn-danger btn"
-            onClick={() => this.DeleteMovie(movie._id)}
-          >
-            Delete
-          </button>
-        </td>
-      </tr>
-    );
+  handleSort = (sortColumn) => {
+    this.setState({ sortColumn });
+  };
+
+  handelGroupChanged = (group) => {
+    this.setState({ selectedGroup: group, currentPage: 1 });
+  };
+  handelPageChanged = (page) => {
+    this.setState({ currentPage: page });
+  };
+  handleLike = (movie) => {
+    const movies = [...this.state.movies];
+    const index = movies.indexOf(movie);
+    movies[index] = { ...movies[index] };
+    movies[index].liked = !movies[index].liked;
+    this.setState({ movies });
+  };
+  handleDelete = (movie) => {
+    const movies = this.state.movies.filter((m) => m._id !== movie._id);
+    this.setState({ movies });
   };
 }
 
